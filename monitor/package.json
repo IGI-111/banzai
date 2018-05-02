@@ -1,0 +1,16 @@
+{
+  "name": "banzai-monitor",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MPL-2.0",
+  "dependencies": {
+    "@std/esm": "^0.26.0",
+    "ipfs": "^0.28.2",
+    "zeromq": "^4.6.0"
+  }
+}

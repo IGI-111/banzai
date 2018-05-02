@@ -1,0 +1,29 @@
+{
+  "name": "banzai-worker",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MPL-2.0",
+  "dependencies": {
+    "@std/esm": "^0.26.0",
+    "fft": "^0.2.1",
+    "fft-js": "0.0.11",
+    "ipfs": "^0.28.2",
+    "node-wav": "0.0.2",
+    "progress-stream": "^2.0.0",
+    "promisepipe": "^2.1.3",
+    "request": "^2.85.0",
+    "request-progress": "^3.0.0",
+    "sleep": "^5.1.1",
+    "sound-parameters-extractor": "^1.4.0",
+    "unzipper": "^0.8.13",
+    "zeromq": "^4.6.0"
+  },
+  "devDependencies": {
+    "chai": "^4.1.2"
+  }
+}
