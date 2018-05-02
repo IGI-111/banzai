@@ -3,6 +3,7 @@ import sleep from 'sleep';
 import request from 'request';
 import fs from 'fs';
 import promisePipe from 'promisepipe';
+import stry from 'streamifier';
 // import progressStream from 'progress-stream';
 import progressRequest from 'request-progress';
 import { ipfs } from './ipfs';
@@ -14,25 +15,13 @@ const calls = {
       const filename = 'cmu_us_awb_arctic-0.90-release.zip';
       const setname = filename.substring(0, filename.indexOf('-'));
       const wavs = fs.readdirSync(`tmp/${filename}-extracted/${setname}/wav`)
-        .map(f => `tmp/${filename}-extracted/${setname}/wav/${f}`);
+        .map(f => `tmp/${filename}-extracted/${setname}/wav/${f}`).slice(0, 30);
 
       let done = 0;
-      resolve(await Promise.all(wavs.map((path, i) => {
-        return new Promise((resolve, reject) => {
-          while (true) {
-            try {
-              ipfs.files.add({ path: filename, content: fs.createReadStream(path) },
-                (err, res) => {
-                  if (err) reject(err);
-                  notifyProgress(++done / wavs.length);
-                  resolve(res[0].hash);
-                });
-              break;
-            } catch (e) {
-              console.log(e);
-            }
-          }
-        });
+      resolve(await Promise.all(wavs.map(async (path, i) => {
+        const hash = await ipfsAddFile(path);
+        notifyProgress(++done / wavs.length);
+        return hash;
       })));
     });
   },
@@ -53,22 +42,10 @@ const calls = {
         .map(f => `tmp/${filename}-extracted/${setname}/wav/${f}`);
 
       let done = 0;
-      resolve(await Promise.all(wavs.map((path, i) => {
-        return new Promise((resolve, reject) => {
-          while (true) {
-            try {
-              ipfs.files.add({ path: filename, content: fs.createReadStream(path) },
-                (err, res) => {
-                  if (err) reject(err);
-                  notifyProgress(0.6 + 0.3 * (++done / wavs.length));
-                  resolve(res[0].hash);
-                });
-              break;
-            } catch (e) {
-              console.log(e);
-            }
-          }
-        });
+      resolve(await Promise.all(wavs.map(async (path, i) => {
+        const hash = await ipfsAddFile(path);
+        notifyProgress(0.6 + 0.3 * (++done / wavs.length));
+        return hash;
       })));
     });
   },
@@ -77,8 +54,8 @@ const calls = {
     const wavhashes = await input;
     let done = 0;
     return (await Promise.all(wavhashes.map(wavhash => new Promise(async (resolve, reject) => {
-      const file = await getSingleHashFile(wavhash);
-      const duration = wavDuration(file.content);
+      const filebuf = await ipfsCatHash(wavhash);
+      const duration = wavDuration(filebuf);
       notifyProgress(done++ / wavhashes.length);
       resolve(duration >= threshold ? wavhash : undefined);
     })))).filter(h => h !== undefined);
@@ -95,30 +72,31 @@ const calls = {
     };
 
     let done = 0;
-    const result = {};
+    const result = [];
     // FIXME: do one at a time to get linear progress, ideally this should be parallel
     for (const wavhash of wavhashes) {
-      const file = await getSingleHashFile(wavhash);
-      const params = await getParamsFromBuffer(file.content, config, 16);
+      const filebuf = await ipfsCatHash(wavhash);
+      const params = await getParamsFromBuffer(filebuf, config, 16);
+      const mfccBuf = arrayToBuf(params.mfcc);
+      const mfccHash = await ipfsAddBuffer(mfccBuf);
+      result.push(mfccHash);
       notifyProgress(++done / wavhashes.length);
-      result[wavhash] = params.mfcc;
     }
     return result;
   },
-  'LEARN': async ({input}) => {
-    const mfccs = await input;
+
+  'LEARN': async ({input, notifyProgress}) => {
+    const mfccHashes = await input;
 
     // do some bogus work
-    let count = 0;
-    for (const wavhash in mfccs) {
-      for (const vals of mfccs[wavhash]) {
-        vals.forEach(() => ++count);
-      }
+    let done = 0;
+    for (const mfccHash of mfccHashes) {
+      const mfccBuf = await ipfsCatHash(mfccHash);
+      const mfcc = bufToArray(mfccBuf);
+      mfcc.forEach(() => sleep.msleep(1));
+      notifyProgress(++done / mfccHashes.length);
     }
-
-    sleep.sleep(1);
-
-    return count;
+    return [];
   }
 };
 
@@ -134,30 +112,61 @@ function wavDuration (buffer) {
   return duration;
 }
 
-async function getSingleHashFile (hash) {
+function arrayToBuf (array) {
+  const arr = new Float32Array(array.reduce((a, b) => a.concat(b)));
+  const buff = Buffer.alloc(4 * arr.length);
+  arr.forEach((value, idx) => {
+    buff.writeFloatLE(value, idx * 4);
+  });
+  return buff;
+}
+
+function bufToArray (buf) {
+  const res = [];
+  for (let i = 0; i < buf.length; i += 4) {
+    res.push(buf.readFloatLE(i));
+  }
+  return res;
+}
+
+async function ipfsCatHash (hash) {
   return new Promise((resolve, reject) => {
-    while (true) {
-      try {
-        ipfs.files.get(hash, (err, files) => {
-          if (err) reject(err);
-          resolve(files[0]);
-        });
-        break;
-      } catch (e) {
-        console.log(e);
-      }
-    }
+    ipfs.files.cat(hash, (err, file) => {
+      if (err) reject(err);
+      resolve(file);
+    });
+  });
+}
+
+async function ipfsAddBuffer (buffer) {
+  return new Promise((resolve, reject) => {
+    ipfs.files.add(buffer,
+      (err, res) => {
+        if (err) reject(err);
+        resolve(res[0].hash);
+      });
+  });
+}
+
+async function ipfsAddFile (path) {
+  const filename = path.substring(path.lastIndexOf('/') + 1);
+  return new Promise((resolve, reject) => {
+    ipfs.files.add({ path: filename, content: fs.createReadStream(path) },
+      (err, res) => {
+        if (err) reject(err);
+        resolve(res[0].hash);
+      });
   });
 }
 
 export async function runTask (task, notifyProgress) {
   // FIXME: check task validity
-  console.log(`Running ${task.id} ${task.call}`);
+  console.log(`Running (pipeline ${task.pipeline}, task ${task.task}): ${task.call}`);
   const call = calls[task.call];
   const res = await call({
     input: task.input,
-    notifyProgress: notifyProgress.bind(undefined, task.id)
+    notifyProgress: notifyProgress.bind(undefined, task.pipeline, task.task)
   }, ...task.args);
-  console.log(`Finished ${task.id} ${task.call}`);
+  console.log(`Finished (pipeline ${task.pipeline}, task ${task.task}): ${task.call}`);
   return res;
 }

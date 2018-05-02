@@ -20,39 +20,54 @@ ipfs.on('ready', () => {
    *  }
    */
 
-  const running = new Set();
+  const tasksInFlight = [];
 
   receiver.on('message', async (msg) => {
     const task = JSON.parse(msg);
     try {
       let res = runTask(task, notifyProgress);
-      running.add(task.id);
+      tasksInFlight.push([task.pipeline, task.task]);
       res = await res;
 
       sender.send(JSON.stringify({
-        id: task.id,
+        pipeline: task.pipeline,
+        task: task.task,
         type: 'result',
         res
       }));
+      tasksInFlight.splice(
+        tasksInFlight.findIndex(
+          ([pipeline, task]) => pipeline === task.pipeline && task === task.task),
+        1);
     } catch (e) {
-      sender.send(JSON.stringify({
-        id: task.id,
-        type: 'error',
-        message: e.message
-      }));
       console.error(e);
+      notifyError(task.pipeline, task.task, e.message);
     }
   });
 
-  function notifyProgress (id, progress) {
+  function notifyProgress (pipeline, task, progress) {
     sender.send(JSON.stringify({
-      id,
+      pipeline,
+      task,
       type: 'progress',
       progress
     }));
   }
 
+  function notifyError (pipeline, task, message) {
+    sender.send(JSON.stringify({
+      pipeline,
+      task,
+      type: 'error',
+      message: message
+    }));
+  }
+
   process.on('SIGINT', function () {
+    for (const [pipeline, task] of tasksInFlight) {
+      notifyError(pipeline, task, 'Process shut down unexpectedly.');
+    }
+
     receiver.close();
     sender.close();
     process.exit();
