@@ -1,9 +1,11 @@
 import express from 'express';
 import bodyParser from 'body-parser';
 import { Pipeline, listPipelines } from './io';
+import cors from 'cors';
 
 const app = express();
 app.use(bodyParser.json());
+app.use(cors());
 
 // Create new pipeline
 app.post('/pipeline', (req, res) => {
@@ -23,7 +25,8 @@ app.get('/pipeline', (req, res) => {
       tasks: pipeline.getTasks().map(
         (task, i) => Object.assign(task, {
           progress: pipeline.getTaskProgress(i),
-          result: pipeline.getTaskResult(i)
+          result: pipeline.getTaskResult(i),
+          active: pipeline.getCurrentTask() === i
         }))
     };
   });

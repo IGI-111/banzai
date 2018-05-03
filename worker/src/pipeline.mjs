@@ -3,7 +3,6 @@ import sleep from 'sleep';
 import request from 'request';
 import fs from 'fs';
 import promisePipe from 'promisepipe';
-import stry from 'streamifier';
 // import progressStream from 'progress-stream';
 import progressRequest from 'request-progress';
 import { ipfs } from './ipfs';
@@ -12,10 +11,15 @@ import { getParamsFromBuffer } from './mfcc';
 const calls = {
   'TEST_FETCH': async ({ notifyProgress }) => {
     return new Promise(async (resolve, reject) => {
+      const tmpDir = '/tmp/banzai/';
+      if (!fs.existsSync(tmpDir)) {
+        fs.mkdirSync(tmpDir);
+      }
+
       const filename = 'cmu_us_awb_arctic-0.90-release.zip';
       const setname = filename.substring(0, filename.indexOf('-'));
-      const wavs = fs.readdirSync(`tmp/${filename}-extracted/${setname}/wav`)
-        .map(f => `tmp/${filename}-extracted/${setname}/wav/${f}`).slice(0, 30);
+      const wavs = fs.readdirSync(`${tmpDir}${filename}-extracted/${setname}/wav`)
+        .map(f => `${tmpDir}${filename}-extracted/${setname}/wav/${f}`).slice(0, 30);
 
       let done = 0;
       resolve(await Promise.all(wavs.map(async (path, i) => {
@@ -28,18 +32,23 @@ const calls = {
 
   'FETCH_FESTVOX': async ({ notifyProgress }, url) => {
     return new Promise(async (resolve, reject) => {
+      const tmpDir = '/tmp/banzai/';
+      if (!fs.existsSync(tmpDir)) {
+        fs.mkdirSync(tmpDir);
+      }
+
       const filename = url.substring(url.lastIndexOf('/') + 1);
       const setname = filename.substring(0, filename.indexOf('-'));
       await promisePipe(
         progressRequest(request(url)).on('progress', (progress) => notifyProgress(0.6 * progress.percent)),
-        fs.createWriteStream(`tmp/${filename}`)
+        fs.createWriteStream(`${tmpDir}${filename}`)
       );
       await promisePipe(
-        fs.createReadStream(`tmp/${filename}`),
-        unzipper.Extract({ path: `tmp/${filename}-extracted` })
+        fs.createReadStream(`${tmpDir}${filename}`),
+        unzipper.Extract({ path: `${tmpDir}${filename}-extracted` })
       );
-      const wavs = fs.readdirSync(`tmp/${filename}-extracted/${setname}/wav`)
-        .map(f => `tmp/${filename}-extracted/${setname}/wav/${f}`);
+      const wavs = fs.readdirSync(`${tmpDir}${filename}-extracted/${setname}/wav`)
+        .map(f => `${tmpDir}${filename}-extracted/${setname}/wav/${f}`);
 
       let done = 0;
       resolve(await Promise.all(wavs.map(async (path, i) => {
@@ -93,7 +102,7 @@ const calls = {
     for (const mfccHash of mfccHashes) {
       const mfccBuf = await ipfsCatHash(mfccHash);
       const mfcc = bufToArray(mfccBuf);
-      mfcc.forEach(() => sleep.msleep(1));
+      mfcc.forEach(() => sleep.usleep(1));
       notifyProgress(++done / mfccHashes.length);
     }
     return [];
