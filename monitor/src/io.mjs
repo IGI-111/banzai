@@ -1,4 +1,5 @@
 import zmq from 'zeromq';
+import { notifyUpdate, formatPipeline } from './index';
 
 const sender = zmq.socket('push');
 const receiver = zmq.socket('pull');
@@ -25,6 +26,7 @@ export class Pipeline {
     this.next = 0;
     this.progress = new Array(tasks.length).fill(0);
     this.results = new Array(tasks.length);
+    this.errors = new Array(tasks.length);
     this.id = nextUniqueId++;
     pipelinesInFlight[this.id] = this;
   }
@@ -67,6 +69,14 @@ export class Pipeline {
     this.results[task] = result;
   }
 
+  setTaskError (task, error) {
+    this.errors[task] = error;
+  }
+
+  getTaskError (task) {
+    return this.errors[task];
+  }
+
   isFinished () {
     return this.tasks.length <= this.next;
   }
@@ -92,6 +102,7 @@ receiver.on('message', (msg) => {
       }
       break;
     case 'error':
+      pipeline.setTaskError(message.task, message.message);
       console.error(`Error on (pipeline ${message.pipeline}, task ${message.task}): ${message.message}`);
       break;
     case 'progress':
@@ -101,4 +112,6 @@ receiver.on('message', (msg) => {
     default:
       console.error(`Unknown message type: ${message.type}`);
   }
+
+  notifyUpdate(JSON.stringify(listPipelines().map(formatPipeline)));
 });

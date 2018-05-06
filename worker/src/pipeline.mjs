@@ -9,54 +9,29 @@ import { ipfs } from './ipfs';
 import { getParamsFromBuffer } from './mfcc';
 
 const calls = {
-  'TEST_FETCH': async ({ notifyProgress }) => {
-    return new Promise(async (resolve, reject) => {
-      const tmpDir = '/tmp/banzai/';
-      if (!fs.existsSync(tmpDir)) {
-        fs.mkdirSync(tmpDir);
-      }
-
-      const filename = 'cmu_us_awb_arctic-0.90-release.zip';
-      const setname = filename.substring(0, filename.indexOf('-'));
-      const wavs = fs.readdirSync(`${tmpDir}${filename}-extracted/${setname}/wav`)
-        .map(f => `${tmpDir}${filename}-extracted/${setname}/wav/${f}`).slice(0, 30);
-
-      let done = 0;
-      resolve(await Promise.all(wavs.map(async (path, i) => {
-        const hash = await ipfsAddFile(path);
-        notifyProgress(++done / wavs.length);
-        return hash;
-      })));
-    });
-  },
-
   'FETCH_FESTVOX': async ({ notifyProgress }, url) => {
-    return new Promise(async (resolve, reject) => {
-      const tmpDir = '/tmp/banzai/';
-      if (!fs.existsSync(tmpDir)) {
-        fs.mkdirSync(tmpDir);
-      }
+    const tmpDir = '/tmp/banzai/';
+    if (!fs.existsSync(tmpDir)) {
+      fs.mkdirSync(tmpDir);
+    }
 
-      const filename = url.substring(url.lastIndexOf('/') + 1);
-      const setname = filename.substring(0, filename.indexOf('-'));
-      await promisePipe(
-        progressRequest(request(url)).on('progress', (progress) => notifyProgress(0.6 * progress.percent)),
-        fs.createWriteStream(`${tmpDir}${filename}`)
-      );
-      await promisePipe(
-        fs.createReadStream(`${tmpDir}${filename}`),
-        unzipper.Extract({ path: `${tmpDir}${filename}-extracted` })
-      );
-      const wavs = fs.readdirSync(`${tmpDir}${filename}-extracted/${setname}/wav`)
-        .map(f => `${tmpDir}${filename}-extracted/${setname}/wav/${f}`);
+    const filename = url.substring(url.lastIndexOf('/') + 1);
+    const setname = filename.substring(0, filename.indexOf('-'));
+    await promisePipe(
+      progressRequest(request(url)).on('progress', (progress) => notifyProgress(progress.percent)),
+      fs.createWriteStream(`${tmpDir}${filename}`)
+    );
+    await promisePipe(
+      fs.createReadStream(`${tmpDir}${filename}`),
+      unzipper.Extract({ path: `${tmpDir}${filename}-extracted` })
+    );
+    const wavs = fs.readdirSync(`${tmpDir}${filename}-extracted/${setname}/wav`)
+      .map(f => `${tmpDir}${filename}-extracted/${setname}/wav/${f}`);
 
-      let done = 0;
-      resolve(await Promise.all(wavs.map(async (path, i) => {
-        const hash = await ipfsAddFile(path);
-        notifyProgress(0.6 + 0.3 * (++done / wavs.length));
-        return hash;
-      })));
-    });
+    return Promise.all(wavs.map(async (path, i) => {
+      const hash = await ipfsAddFile(path);
+      return hash;
+    }));
   },
 
   'FILTER_LONGER': async ({ notifyProgress, input }, threshold) => {
@@ -67,6 +42,17 @@ const calls = {
       const duration = wavDuration(filebuf);
       notifyProgress(done++ / wavhashes.length);
       resolve(duration >= threshold ? wavhash : undefined);
+    })))).filter(h => h !== undefined);
+  },
+
+  'FILTER_SHORTER': async ({ notifyProgress, input }, threshold) => {
+    const wavhashes = await input;
+    let done = 0;
+    return (await Promise.all(wavhashes.map(wavhash => new Promise(async (resolve, reject) => {
+      const filebuf = await ipfsCatHash(wavhash);
+      const duration = wavDuration(filebuf);
+      notifyProgress(done++ / wavhashes.length);
+      resolve(duration <= threshold ? wavhash : undefined);
     })))).filter(h => h !== undefined);
   },
 
@@ -102,7 +88,8 @@ const calls = {
     for (const mfccHash of mfccHashes) {
       const mfccBuf = await ipfsCatHash(mfccHash);
       const mfcc = bufToArray(mfccBuf);
-      mfcc.forEach(() => sleep.usleep(1));
+      mfcc.forEach(() => {});
+      sleep.msleep(1);
       notifyProgress(++done / mfccHashes.length);
     }
     return [];

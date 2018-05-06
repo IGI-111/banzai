@@ -2,41 +2,56 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import { Pipeline, listPipelines } from './io';
 import cors from 'cors';
+import expressWS from 'express-ws';
 
 const app = express();
 app.use(bodyParser.json());
 app.use(cors());
+const wsInstance = expressWS(app);
 
 // Create new pipeline
 app.post('/pipeline', (req, res) => {
   // FIXME: do input validation of tasks
-  const tasks = req.body;
-  const pipeline = new Pipeline(tasks);
-  pipeline.sendNext();
-  res.json(pipeline.getId());
+  try {
+    const tasks = req.body;
+    const pipeline = new Pipeline(tasks);
+    pipeline.sendNext();
+    res.json(pipeline.getId());
+  } catch (e) {
+    res.status(400);
+    res.send(e);
+  }
 });
 
 // List existing pipelines
 app.get('/pipeline', (req, res) => {
-  const pipelines = listPipelines();
-  const out = pipelines.map(pipeline => {
-    return {
-      id: pipeline.getId(),
-      tasks: pipeline.getTasks().map(
-        (task, i) => Object.assign(task, {
-          progress: pipeline.getTaskProgress(i),
-          result: pipeline.getTaskResult(i),
-          active: pipeline.getCurrentTask() === i
-        }))
-    };
-  });
+  const out = listPipelines().map(formatPipeline);
   res.json(out);
 });
 
-// List possible tasks
-app.get('/taskTemplate', (req, res) => {
-
+// Websocket to notify of updates
+app.ws('/live/pipeline', (ws, req) => {
+  ws.send(JSON.stringify(listPipelines().map(formatPipeline)));
 });
+
+export function notifyUpdate (payload) {
+  for (const client of wsInstance.getWss().clients) {
+    client.send(payload);
+  }
+}
+
+export function formatPipeline (pipeline) {
+  return {
+    id: pipeline.getId(),
+    tasks: pipeline.getTasks().map(
+      (task, i) => Object.assign(task, {
+        progress: pipeline.getTaskProgress(i),
+        error: pipeline.getTaskError(i),
+        result: pipeline.getTaskResult(i),
+        active: pipeline.getCurrentTask() === i
+      }))
+  };
+}
 
 const APIPort = 4000;
 app.listen(APIPort, () => console.log(`API Listening on port ${APIPort}`));
