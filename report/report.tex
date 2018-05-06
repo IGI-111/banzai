@@ -4,6 +4,7 @@
 \usepackage{tgschola}
 \usepackage{listings}
 \usepackage{graphicx}
+\usepackage{hyperref}
 
 \lstset{%
     basicstyle=\small\ttfamily,
@@ -95,24 +96,31 @@ Given we are working on audio datasets with heavy files, passing the entire data
 Decoupling the semantic representation of data from the actual contents of the dataset is therefore profitable.
 
 This is easily solved by passing identifiers for the data of course, but simply using arbitrary identifiers has pitfalls.
-We would like to retain the ability to cache tasks. The computed properties of one WAV file are always the same after all.
-Content addressing is very useful in this instance, using a hash of said WAV file we can ensure that
+We would like to retain the ability to cache tasks, our tasks being mostly deterministic.
+Content
+addressing\footnote{\url{https://en.wikipedia.org/wiki/Content-addressable_storage}} is very useful in this instance, using a hash of said WAV file we can ensure that
 we are talking about the same file with acceptable probability, and not have to recompute the results.
 
 \section{Distributed data distribution}
 
 Still, there is the problem of actually getting data from one task to the other, which is non-trivial if we pose the constraint
 of having tasks run on arbitrary machines. Content addressing is also useful here. Using IPFS, we can
-treat that file hash as a universal handle, usable on any machine and the associated data will be transfered and resolved seamlessly through the network, with the smallest overhead possible.
+treat that file hash as a universal handle, usable on any machine and the associated data will be
+transfered and resolved seamlessly through the network, with the smallest overhead possible.
 
-Indeed, a more centralized approach would have been to use a centralized datastore for this purpose, but fetching from a single point is a problem.
-We don't want to assume that every worker will be close (geographically or in terms of network) to such a store and it seems like a better idea to just fetch from the closest person to have our data.
+Indeed, a more centralized approach would have been to use a centralized datastore for this
+purpose, which has some advantages (archival or authoritative changes are easier for instance)
+but fetching from a single point can also be a problem.
+
+We don't want to assume that every worker will be close (geographically or in terms of network) to
+such a store and it seems like a better idea to just fetch from the closest person to have our data.
 In the best case, they might be one of our neighbour workers, who just recently processed that same data.
 
 In this context, a distributed solution, such as the one provided by IPFS in the form of a DHT is far better.
 We just resolve who is the closest person to have the data behind a certain hash, and fetch from them.
 
-This has the positive side effect of providing our users with a unified way to access and share their dataset and all the intermediary and final results of their computations.
+This has the positive side effect of providing our users with a unified way to access and share
+their dataset and all the intermediary and final results of their computations.
 All of which can be seamlessly implemented inside the browser.
 
 \end{document}
