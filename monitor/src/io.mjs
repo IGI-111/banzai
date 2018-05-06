@@ -1,5 +1,6 @@
 import zmq from 'zeromq';
 import { notifyUpdate, formatPipeline } from './index';
+import { getCacheValue, setCacheValue } from './cache';
 
 const sender = zmq.socket('push');
 const receiver = zmq.socket('pull');
@@ -26,19 +27,37 @@ export class Pipeline {
     this.next = 0;
     this.progress = new Array(tasks.length).fill(0);
     this.results = new Array(tasks.length);
+    this.starts = new Array(tasks.length);
+    this.ends = new Array(tasks.length);
     this.errors = new Array(tasks.length);
     this.id = nextUniqueId++;
     pipelinesInFlight[this.id] = this;
   }
 
   sendNext (input) {
+    this.starts[this.next] = new Date();
+    this.tasks[this.next].input = input;
     const task = Object.assign({}, this.tasks[this.next]);
-    task.input = input;
     task.pipeline = this.id;
     task.task = this.next;
-    console.log(`Sending (pipeline ${this.id}, task ${this.next}): ${task.call}`);
-    sender.send(JSON.stringify(task));
-    ++this.next;
+
+    const cachedResult = getCacheValue(this.tasks[this.next]);
+    if (cachedResult === undefined) {
+      console.log(`Sending (pipeline ${this.id}, task ${this.next}): ${task.call}`);
+      sender.send(JSON.stringify(task));
+      ++this.next;
+    } else {
+      console.log(`Reusing cached value (pipeline ${this.id}, task ${this.next}): ${task.call}`);
+      this.setTaskProgress(this.next, 1);
+      this.setTaskResult(this.next, cachedResult);
+      ++this.next;
+      if (this.isFinished()) {
+        console.log(`Pipeline ${this.id} finished: ${cachedResult}`);
+      } else {
+        this.sendNext(cachedResult);
+      }
+      notifyUpdate(JSON.stringify(listPipelines().map(formatPipeline)));
+    }
   }
 
   getTasks () {
@@ -57,6 +76,14 @@ export class Pipeline {
     return this.progress[task];
   }
 
+  getTaskStart (task) {
+    return this.starts[task];
+  }
+
+  getTaskEnd (task) {
+    return this.ends[task];
+  }
+
   setTaskProgress (task, progress) {
     this.progress[task] = progress;
   }
@@ -66,6 +93,7 @@ export class Pipeline {
   }
 
   setTaskResult (task, result) {
+    this.ends[task] = new Date();
     this.results[task] = result;
   }
 
@@ -82,6 +110,8 @@ export class Pipeline {
   }
 }
 
+let lastUpdate = new Date();
+
 receiver.on('message', (msg) => {
   const message = JSON.parse(msg);
   const pipeline = pipelinesInFlight[message.pipeline];
@@ -95,6 +125,7 @@ receiver.on('message', (msg) => {
     case 'result':
       pipeline.setTaskProgress(message.task, 1);
       pipeline.setTaskResult(message.task, message.res);
+      setCacheValue(pipeline.getTasks()[message.task], message.res);
       if (pipeline.isFinished()) {
         console.log(`Pipeline ${pipeline.id} finished: ${message.res}`);
       } else {
@@ -106,12 +137,16 @@ receiver.on('message', (msg) => {
       console.error(`Error on (pipeline ${message.pipeline}, task ${message.task}): ${message.message}`);
       break;
     case 'progress':
-      console.log(`Progress on (pipeline ${message.pipeline}, task ${message.task}): ${message.progress}`);
+      // console.log(`Progress on (pipeline ${message.pipeline}, task ${message.task}): ${message.progress}`);
       pipeline.setTaskProgress(message.task, message.progress);
       break;
     default:
       console.error(`Unknown message type: ${message.type}`);
   }
 
-  notifyUpdate(JSON.stringify(listPipelines().map(formatPipeline)));
+  // rate limit progress updates to one per second
+  if (!(message.type === 'progress' && (new Date() - lastUpdate) < 1000)) {
+    notifyUpdate(JSON.stringify(listPipelines().map(formatPipeline)));
+    lastUpdate = new Date();
+  }
 });

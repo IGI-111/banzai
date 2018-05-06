@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import { Container } from 'semantic-ui-react';
+import { Card, Container } from 'semantic-ui-react';
 import Websocket from 'react-websocket';
 import PipelineDisplay from './PipelineDisplay';
 import CreatePipeline from './CreatePipeline';
@@ -27,9 +27,11 @@ class App extends Component {
     return (
       <Container style={{ marginTop: '3em' }}>
         <CreatePipeline/>
-        <Container text style={{ marginTop: '4em'}}>
+        <Container style={{ marginTop: '4em'}}>
           <Websocket url={`ws://${HOST}/live/pipeline`} onMessage={this.updatePipelines}/>
-          {pipelineDisplays}
+          <Card.Group itemsPerRow={3}>
+            {pipelineDisplays}
+          </Card.Group>
         </Container>
       </Container>
     );

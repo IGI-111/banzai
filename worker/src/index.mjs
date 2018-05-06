@@ -12,14 +12,6 @@ ipfs.on('ready', () => {
   sender.connect('tcp://127.0.0.1:4444');
   console.log('Worker started');
 
-  /* Task message:
-   *  {
-   *    id: 3213
-   *    call: 'SOME_CALL',
-   *    args: ['arg1', 2],
-   *  }
-   */
-
   const tasksInFlight = [];
 
   receiver.on('message', async (msg) => {

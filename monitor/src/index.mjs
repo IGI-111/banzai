@@ -48,7 +48,9 @@ export function formatPipeline (pipeline) {
         progress: pipeline.getTaskProgress(i),
         error: pipeline.getTaskError(i),
         result: pipeline.getTaskResult(i),
-        active: pipeline.getCurrentTask() === i
+        active: pipeline.getCurrentTask() === i,
+        start: pipeline.getTaskStart(i),
+        end: pipeline.getTaskEnd(i)
       }))
   };
 }

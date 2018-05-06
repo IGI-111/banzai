@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
-import { List, Segment, Icon, Accordion, Progress } from 'semantic-ui-react';
+import { Card, List, Icon, Accordion, Progress } from 'semantic-ui-react';
+import moment from 'moment';
 
 class PipelineDisplay extends Component {
   state = { activeIndex: -1 };
@@ -23,6 +24,8 @@ class PipelineDisplay extends Component {
           <List horizontal>
             { task.args.map((arg, i) => <List.Item key={i}>{arg}</List.Item>)}
           </List>
+          {task.start !== undefined && <div>Started {moment(task.start).fromNow()}</div>}
+          {task.end !== undefined && <div>Ended {moment(task.end).fromNow()}</div>}
           <Progress autoSuccess percent={100*task.progress}
             active={task.error === undefined && task.active}
             error={task.error !== undefined}
@@ -44,12 +47,14 @@ class PipelineDisplay extends Component {
     );
 
     return (
-      <Segment>
-        <h1>Pipeline {pipeline.id}</h1>
-        <Accordion fluid>
-          {steps}
-        </Accordion>
-      </Segment>
+      <Card>
+        <Card.Content header={`Pipeline ${pipeline.id}`}/>
+        <Card.Content>
+          <Accordion fluid>
+            {steps}
+          </Accordion>
+        </Card.Content>
+      </Card>
 
     );
   }
