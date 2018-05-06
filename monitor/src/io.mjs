@@ -1,6 +1,5 @@
 import zmq from 'zeromq';
 import { notifyUpdate, formatPipeline } from './index';
-import { getCacheValue, setCacheValue } from './cache';
 
 const sender = zmq.socket('push');
 const receiver = zmq.socket('pull');
@@ -41,23 +40,10 @@ export class Pipeline {
     task.pipeline = this.id;
     task.task = this.next;
 
-    const cachedResult = getCacheValue(this.tasks[this.next]);
-    if (cachedResult === undefined) {
-      console.log(`Sending (pipeline ${this.id}, task ${this.next}): ${task.call}`);
-      sender.send(JSON.stringify(task));
-      ++this.next;
-    } else {
-      console.log(`Reusing cached value (pipeline ${this.id}, task ${this.next}): ${task.call}`);
-      this.setTaskProgress(this.next, 1);
-      this.setTaskResult(this.next, cachedResult);
-      ++this.next;
-      if (this.isFinished()) {
-        console.log(`Pipeline ${this.id} finished: ${cachedResult}`);
-      } else {
-        this.sendNext(cachedResult);
-      }
-      notifyUpdate(JSON.stringify(listPipelines().map(formatPipeline)));
-    }
+    console.log(`Sending (pipeline ${this.id}, task ${this.next}): ${task.call}`);
+    sender.send(JSON.stringify(task));
+    ++this.next;
+    notifyUpdate(JSON.stringify(listPipelines().map(formatPipeline)));
   }
 
   getTasks () {
@@ -125,7 +111,6 @@ receiver.on('message', (msg) => {
     case 'result':
       pipeline.setTaskProgress(message.task, 1);
       pipeline.setTaskResult(message.task, message.res);
-      setCacheValue(pipeline.getTasks()[message.task], message.res);
       if (pipeline.isFinished()) {
         console.log(`Pipeline ${pipeline.id} finished: ${message.res}`);
       } else {
