@@ -25,6 +25,10 @@ class PipelineDisplay extends Component {
             { task.args.map((arg, i) => <List.Item key={i}>{arg}</List.Item>)}
           </List>
           {task.start !== undefined && <div>Started {moment(task.start).fromNow()}</div>}
+          {task.start !== undefined && task.end === undefined &&
+              <div>ETA: {moment.duration(
+                (moment() - moment(task.start)) * ((1-task.progress)/task.progress)
+              ).humanize()}</div>}
           {task.end !== undefined && <div>Ended {moment(task.end).fromNow()}</div>}
           <Progress autoSuccess percent={100*task.progress}
             active={task.error === undefined && task.active}
