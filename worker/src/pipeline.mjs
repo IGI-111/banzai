@@ -29,7 +29,9 @@ const calls = {
       .map(f => `${tmpDir}${filename}-extracted/${setname}/wav/${f}`);
 
     return Promise.all(wavs.map(async (path, i) => {
-      const hash = await ipfsAddFile(path);
+      const filename = path.substring(path.lastIndexOf('/') + 1);
+      const res = await ipfs.files.add({path: filename, content: fs.createReadStream(path) });
+      const hash = res[0].hash;
       return hash;
     }));
   },
@@ -38,7 +40,7 @@ const calls = {
     const wavhashes = await input;
     let done = 0;
     return (await Promise.all(wavhashes.map(wavhash => new Promise(async (resolve, reject) => {
-      const filebuf = await ipfsCatHash(wavhash);
+      const filebuf = await ipfs.files.cat(wavhash);
       const duration = wavDuration(filebuf);
       notifyProgress(done++ / wavhashes.length);
       resolve(duration >= threshold ? wavhash : undefined);
@@ -49,7 +51,7 @@ const calls = {
     const wavhashes = await input;
     let done = 0;
     return (await Promise.all(wavhashes.map(wavhash => new Promise(async (resolve, reject) => {
-      const filebuf = await ipfsCatHash(wavhash);
+      const filebuf = await ipfs.files.cat(wavhash);
       const duration = wavDuration(filebuf);
       notifyProgress(done++ / wavhashes.length);
       resolve(duration <= threshold ? wavhash : undefined);
@@ -70,10 +72,10 @@ const calls = {
     const result = [];
     // FIXME: do one at a time to get linear progress, ideally this should be parallel
     for (const wavhash of wavhashes) {
-      const filebuf = await ipfsCatHash(wavhash);
+      const filebuf = await ipfs.files.cat(wavhash);
       const params = await getParamsFromBuffer(filebuf, config, 16);
       const mfccBuf = arrayToBuf(params.mfcc);
-      const mfccHash = await ipfsAddBuffer(mfccBuf);
+      const mfccHash = (await ipfs.files.add(mfccBuf))[0].hash;
       result.push(mfccHash);
       notifyProgress(++done / wavhashes.length);
     }
@@ -86,7 +88,7 @@ const calls = {
     // do some bogus work
     let done = 0;
     for (const mfccHash of mfccHashes) {
-      const mfccBuf = await ipfsCatHash(mfccHash);
+      const mfccBuf = await ipfs.files.cat(mfccHash);
       const mfcc = bufToArray(mfccBuf);
       mfcc.forEach(() => {});
       sleep.msleep(1);
@@ -123,36 +125,6 @@ function bufToArray (buf) {
     res.push(buf.readFloatLE(i));
   }
   return res;
-}
-
-async function ipfsCatHash (hash) {
-  return new Promise((resolve, reject) => {
-    ipfs.files.cat(hash, (err, file) => {
-      if (err) reject(err);
-      resolve(file);
-    });
-  });
-}
-
-async function ipfsAddBuffer (buffer) {
-  return new Promise((resolve, reject) => {
-    ipfs.files.add(buffer,
-      (err, res) => {
-        if (err) reject(err);
-        resolve(res[0].hash);
-      });
-  });
-}
-
-async function ipfsAddFile (path) {
-  const filename = path.substring(path.lastIndexOf('/') + 1);
-  return new Promise((resolve, reject) => {
-    ipfs.files.add({ path: filename, content: fs.createReadStream(path) },
-      (err, res) => {
-        if (err) reject(err);
-        resolve(res[0].hash);
-      });
-  });
 }
 
 export async function runTask (task, notifyProgress) {

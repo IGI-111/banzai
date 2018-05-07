@@ -30,10 +30,11 @@ class PipelineDisplay extends Component {
                 (moment() - moment(task.start)) * ((1-task.progress)/task.progress)
               ).humanize()}</div>}
           {task.end !== undefined && <div>Ended {moment(task.end).fromNow()}</div>}
-          <Progress autoSuccess percent={100*task.progress}
+          <Progress
+            autoSuccess
+            percent={100*task.progress}
             active={task.error === undefined && task.active}
-            error={task.error !== undefined}
-          >
+            error={task.error !== undefined}>
             {task.error !== undefined && task.error }
           </Progress>
         </Accordion.Title>
@@ -59,7 +60,6 @@ class PipelineDisplay extends Component {
           </Accordion>
         </Card.Content>
       </Card>
-
     );
   }
 }

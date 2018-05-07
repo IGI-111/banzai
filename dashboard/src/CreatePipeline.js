@@ -89,22 +89,26 @@ class CreatePipeline extends Component {
             />
           </Step.Title>
           <Step.Description>
-            {this.state.tasks[this.state.selection[i]].args.map((arg, j) => <Form.Field key={j}>
-              <label>{arg.label}</label>
-              <Input value={this.state.arguments[i][j]} type={arg.type}
-                onChange={(e, data) => this.setState(update(this.state, {
-                  arguments: {
-                    $splice: [[i, 1,
-                      update(this.state.arguments[i], { $splice: [[j, 1,
-                        arg.type === 'number' ? Number(data.value) : data.value]] })
-                    ]]
-                  }
-                }))}
-              /><br/>
-            </Form.Field>)}
-          </Step.Description>
-        </Step.Content>
-      </Step>
+            {this.state.tasks[this.state.selection[i]].args.map((arg, j) =>
+              <Form.Field key={j}>
+                <label>{arg.label}</label>
+                <Input
+                  value={this.state.arguments[i][j]}
+                  type={arg.type}
+                  onChange={(e, data) => this.setState(update(this.state, {
+                    arguments: {
+                      $splice: [[i, 1,
+                        update(this.state.arguments[i], { $splice: [[j, 1,
+                          arg.type === 'number' ? Number(data.value) : data.value]] })
+                      ]]
+                    }
+                  }))}
+                /><br/>
+              </Form.Field>
+            )}
+            </Step.Description>
+          </Step.Content>
+        </Step>
 
     );
 
