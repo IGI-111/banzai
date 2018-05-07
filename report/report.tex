@@ -19,6 +19,13 @@
 \begin{document}
 \maketitle
 
+This project is a small mockup of a tool to build training pipelines for machine learning.
+In the following report I'll try and explain some its features and the motivation behind them.
+
+This is, of course, a quite limited example and though I tried to make sense of it as if it were
+real, some of the design choices, such as implementing everything in a scripting language or the
+lack of strictly defined API contracts, are compromised to the idea of a prototype.
+
 \section{Three tiers}
 
 \begin{figure}[htpb]
@@ -40,9 +47,9 @@ The actual pipeline tasks are executed by workers, multiple of which can run sim
 \section{Pipelines are just lists of tasks}
 
 Configuring a modular pipeline of tasks is both very generic and generally useful, and as such
-there are lots of previous work addressing the topic.
-Multiple languages and tools have been specified to great lengths to do do such a thing,
-and though it would be interesting to delve into it to great lengths, I chose not to.
+there is a lot of previous work addressing the topic.
+Multiple languages and tools have been specified to great lengths to do such a thing,
+and though it would be interesting to delve into it, I chose not to.
 
 In this example, a pipeline is only an ordered list of tasks.
 And each task is an RPC call, with the input of the previous task as an implicit argument.
@@ -83,6 +90,7 @@ The scheduling and communication between the monitor and the workers is, in this
 to the network in the form of ZeroMQ PUSH and PULL sockets following the Pipeline pattern.
 This communication takes the form of JSON messages as task orders and task reports.
 
+
 In effect, this allows us to easily swap out our task scheduling mechanism by changing the routing
 of those messages, without having to alter the logic of our code.
 
@@ -99,14 +107,14 @@ This is easily solved by passing identifiers for the data of course, but simply 
 We would like to retain the ability to cache tasks, our tasks being mostly deterministic.
 Content
 addressing\footnote{\url{https://en.wikipedia.org/wiki/Content-addressable_storage}} is very useful in this instance, using a hash of said WAV file we can ensure that
-we are talking about the same file with acceptable probability, and not have to recompute the results.
+we are talking about the same file with acceptable probability, and handle it accordingly.
 
 \section{Distributed data distribution}
 
 Still, there is the problem of actually getting data from one task to the other, which is non-trivial if we pose the constraint
 of having tasks run on arbitrary machines. Content addressing is also useful here. Using IPFS, we can
 treat that file hash as a universal handle, usable on any machine and the associated data will be
-transfered and resolved seamlessly through the network, with the smallest overhead possible.
+transfered and resolved seamlessly through the network, with a small overhead.
 
 Indeed, a more centralized approach would have been to use a centralized datastore for this
 purpose, which has some advantages (archival or authoritative changes are easier for instance)
